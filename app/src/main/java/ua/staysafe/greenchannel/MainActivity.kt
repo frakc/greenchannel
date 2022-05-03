@@ -1,6 +1,7 @@
 package ua.staysafe.greenchannel
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.DatePickerDialog
 import android.app.role.RoleManager
 import android.content.Context
@@ -18,6 +19,7 @@ import android.provider.Settings
 import android.provider.Telephony
 import android.util.Log
 import android.widget.DatePicker
+import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -37,6 +39,8 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
         const val PREFFS_TIME = "time"
         const val MAKE_DEFAULT_APP_REQUEST = 1144
         const val PERMISSION_SEND_SMS = 1155
+
+        const val REQUEST_FILE_MANAGE = 1011
     }
 
     lateinit var preffs: SharedPreferences
@@ -53,7 +57,7 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
         val my = this.packageName
         Log.e("mcheck", "$defaultPackage $my ${defaultPackage == my}")
         binding.btnRegister.setOnClickListener { makeMeDefaultAppRequest(packageName) }
-        binding.btnHide.setOnClickListener { requestPermissionsOrDelete() }
+        binding.btnHide.setOnClickListener { checkStoragePermissionAndDelete() }
         binding.btnRestoreDefault.setOnClickListener {
             val prev = preffs.getString(PREFFS_DEFAULT, "")
             makeMeDefaultAppRequest(prev!!)
@@ -73,6 +77,10 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
         updateUi()
     }
 
+
+    @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.R)
+    fun isRPlus() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+    fun isQPlus() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     private fun selectDate() {
         val c = Calendar.getInstance()
         c.timeInMillis = timestamp
@@ -187,7 +195,7 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
     private fun requestPermissionsOrDelete() {
 
         // check permission is given
-        val list = arrayOf(
+        val list = mutableListOf(
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
@@ -195,6 +203,9 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE
         )
+//        if (isQPlus()) {
+//            list.add(Manifest.permission.ACCESS_MEDIA_LOCATION)
+//        }
         val check = list
             .map {
                 ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
@@ -202,10 +213,27 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
         Log.e("mcheck", "check $check")
         if (!check) {
             // request permission (see result in onRequestPermissionsResult() method)
-            ActivityCompat.requestPermissions(this, list, PERMISSION_SEND_SMS)
+            ActivityCompat.requestPermissions(this, list.toTypedArray(), PERMISSION_SEND_SMS)
         } else {
             // permission already granted run sms send
             deleteData()
+        }
+    }
+
+    @SuppressLint("NewApi")
+    private fun checkStoragePermissionAndDelete() {
+        if (isRPlus()) {
+            if (Environment.isExternalStorageManager()) {
+                requestPermissionsOrDelete()
+
+            } else {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                intent.addCategory("android.intent.category.DEFAULT")
+                intent.data = Uri.parse("package:$packageName")
+                startActivityForResult(intent, REQUEST_FILE_MANAGE)
+            }
+        } else {
+            requestPermissionsOrDelete()
         }
     }
 
@@ -220,7 +248,7 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
 
     private fun deleteFiles() {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (isQPlus()) {
             val resolver = contentResolver
             val projecitons = arrayOf("_id", "_display_name", "datetaken")
 
@@ -230,7 +258,13 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
             )
             Log.e("mcheck", "result $result")
             val cursor: Cursor? =
-                resolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projecitons, null, null, null)
+                resolver.query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    projecitons,
+                    null,
+                    null,
+                    null
+                )
             Log.e("mcheck", "columns ${cursor?.columnNames?.toString()}")
 //            cursor?.columnNames?.forEach {
 //                Log.e("mcheck","columns $it")
@@ -371,16 +405,6 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
                     val id = c.getLong(0)
                     val date = c.getLong(1)
                     Log.e("mcheck", "sms $id $date")
-//                    val id: Long = c.getLong(0)
-//                    val threadId: Long = c.getLong(1)
-//                    val address: String = c.getString(2)
-//                    val body: String = c.getString(5)
-//                    if (message == body && address == number) {
-//                        mLogger.logInfo("Deleting SMS with id: $threadId")
-//                        context.contentResolver.delete(
-//                            Uri.parse("content://sms/$id"), null, null
-//                        )
-//                    }
                 } while (c.moveToNext())
             }
         } catch (e: java.lang.Exception) {
