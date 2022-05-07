@@ -24,6 +24,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.APP_MESSAGING" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
@@ -81,6 +82,15 @@
                 <data android:scheme="mmsto" />
             </intent-filter>
         </service>
+
     </application>
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data
+                android:host="*"
+                android:scheme="smsto" />
+        </intent>
+    </queries>
 
 </manifest>

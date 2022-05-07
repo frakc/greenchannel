@@ -11,8 +11,9 @@ android {
         applicationId "ua.staysafe.greenchannel"
         minSdk 21
         targetSdk 31
-        versionCode 1
-        versionName "1.0"
+        versionCode 4
+        versionName "0.$versionCode"
+        setProperty("archivesBaseName", "GreenChannel-$versionName")
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -8,24 +8,19 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.provider.MediaStore
-import android.provider.OpenableColumns
 import android.provider.Settings
 import android.provider.Telephony
 import android.util.Log
 import android.widget.DatePicker
-import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import ua.staysafe.greenchannel.databinding.ActivityMainBinding
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -68,6 +63,7 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
         if (timestamp == 0L) {
             timestamp = df.parse("24/02/2022").time
         }
+
     }
 
 
@@ -78,9 +74,6 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
     }
 
 
-    @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.R)
-    fun isRPlus() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-    fun isQPlus() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     private fun selectDate() {
         val c = Calendar.getInstance()
         c.timeInMillis = timestamp
@@ -193,6 +186,7 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
     }
 
     private fun requestPermissionsOrDelete() {
+        Log.e("mcheck", "requestPermissionsOrDelete")
 
         // check permission is given
         val list = mutableListOf(
@@ -208,9 +202,12 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
 //        }
         val check = list
             .map {
-                ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+                val isGranted =
+                    ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+                Log.e("mcheck", "$it isGranted:$isGranted")
+                isGranted
             }.all { it }
-        Log.e("mcheck", "check $check")
+        Log.e("mcheck", "all permissions granted $check")
         if (!check) {
             // request permission (see result in onRequestPermissionsResult() method)
             ActivityCompat.requestPermissions(this, list.toTypedArray(), PERMISSION_SEND_SMS)
@@ -238,176 +235,8 @@ class MainActivity : AppCompatActivity(), DatePickerDialog.OnDateSetListener {
     }
 
     private fun deleteData() {
-        try {
-            deleteFiles()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        deleteSMS()
+        DeleteDataUseCase().invoke(timestamp, contentResolver)
     }
 
-    private fun deleteFiles() {
 
-        if (isQPlus()) {
-            val resolver = contentResolver
-            val projecitons = arrayOf("_id", "_display_name", "datetaken")
-
-            val result = resolver.delete(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "datetaken > ?",
-                arrayOf(timestamp.toString())
-            )
-            Log.e("mcheck", "result $result")
-            val cursor: Cursor? =
-                resolver.query(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    projecitons,
-                    null,
-                    null,
-                    null
-                )
-            Log.e("mcheck", "columns ${cursor?.columnNames?.toString()}")
-//            cursor?.columnNames?.forEach {
-//                Log.e("mcheck","columns $it")
-//
-//            }
-            cursor?.let { c ->
-                val nameColumnIndex: Int = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-//                val nameColumnIndex: Int = c.getColumnIndex(OpenableColumns.)
-//                val nameColumnIndex: Int = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-
-                if (c.moveToFirst()) {
-                    do {
-
-                        val id = cursor.getLong(0)
-                        val title = cursor.getString(nameColumnIndex)
-                        val date = cursor.getLong(2)
-                        var meta = ""
-                        c.columnNames.forEachIndexed { index, s ->
-                            try {
-
-                                val content = c.getString(index)
-                                if (content != null && content != "null") {
-                                    meta += "[$s $content]"
-                                }
-                            } catch (e: Exception) {
-                                meta += "[$s error]"
-                            }
-                        }
-                        Log.e("mcheck", "meta $meta")
-
-                        Log.e("mcheck", "file $id, $title, $date")
-                    } while (c.moveToNext())
-
-                } else {
-                    Log.e("mcheck", "cannot move to first")
-
-                }
-
-            }
-
-        } else {
-            Log.e("mheck", "delete data ")
-            val externalLocks = listOf(
-                Environment.DIRECTORY_DCIM,
-                Environment.DIRECTORY_DOCUMENTS,
-                Environment.DIRECTORY_DOWNLOADS,
-                Environment.DIRECTORY_MOVIES,
-                Environment.DIRECTORY_MUSIC,
-                Environment.DIRECTORY_PICTURES
-            )
-            externalLocks.forEach {
-
-
-                val externalDir = this.getExternalFilesDir(it)
-                traverseRootDir(externalDir)
-            }
-        }
-    }
-
-    private fun delteImages() {
-        val resolver = contentResolver
-        val projecitons = arrayOf("_id", "_display_name", "datetaken")
-        val cursor: Cursor? =
-            resolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null, null, null, null)
-        Log.e("mcheck", "columns ${cursor?.columnNames?.toString()}")
-//            cursor?.columnNames?.forEach {
-//                Log.e("mcheck","columns $it")
-//
-//            }
-        cursor?.let { c ->
-            val nameColumnIndex: Int = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-//                val nameColumnIndex: Int = c.getColumnIndex(OpenableColumns.)
-//                val nameColumnIndex: Int = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-
-            if (c.moveToFirst()) {
-                do {
-
-                    val id = cursor.getLong(0)
-                    val title = cursor.getString(nameColumnIndex)
-                    val date = cursor.getLong(2)
-                    var meta = ""
-                    c.columnNames.forEachIndexed { index, s ->
-                        try {
-
-                            val content = c.getString(index)
-                            if (content != null && content != "null") {
-                                meta += "[$s $content]"
-                            }
-                        } catch (e: Exception) {
-                            meta += "[$s error]"
-                        }
-                    }
-                    Log.e("mcheck", "meta $meta")
-
-                    Log.e("mcheck", "file $id, $title, $date")
-                } while (c.moveToNext())
-
-            } else {
-                Log.e("mcheck", "cannot move to first")
-
-            }
-
-        }
-    }
-
-    private fun traverseRootDir(dir: File?) {
-        Log.e("mcheck", "dir ${dir?.name} ${dir?.path}")
-        if (dir != null && dir.exists() && dir.isDirectory) {
-            val fileList = dir.listFiles()
-            Log.e("mcheck", "list ${fileList.map { it.name }}")
-
-            fileList?.forEach { deleteRecursive(it) }
-        }
-    }
-
-    private fun deleteRecursive(fileOrDirectory: File) {
-        if (fileOrDirectory.isDirectory) for (child in fileOrDirectory.listFiles()) deleteRecursive(
-            child
-        )
-        if (fileOrDirectory.lastModified() > timestamp) {
-            Log.e("mcheck", "file to delete ${fileOrDirectory.name}")
-            fileOrDirectory.delete()
-        } else {
-            Log.e("mcheck", "file skipped ${fileOrDirectory.name}")
-
-        }
-    }
-
-    private fun deleteSMS() {
-        try {
-            val uriSms = Uri.parse("content://sms/")
-            contentResolver.delete(uriSms, "date > ?", arrayOf(timestamp.toString()))
-            val c: Cursor? = contentResolver.query(
-                uriSms, arrayOf("_id", "date"), "date > ?", arrayOf(timestamp.toString()), null
-            )
-            if (c != null && c.moveToFirst()) {
-                do {
-                    val id = c.getLong(0)
-                    val date = c.getLong(1)
-                    Log.e("mcheck", "sms $id $date")
-                } while (c.moveToNext())
-            }
-        } catch (e: java.lang.Exception) {
-        }
-    }
 }
