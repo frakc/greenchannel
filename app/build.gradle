@@ -11,7 +11,7 @@ android {
         applicationId "ua.staysafe.greenchannel"
         minSdk 21
         targetSdk 31
-        versionCode 4
+        versionCode 5
         versionName "0.$versionCode"
         setProperty("archivesBaseName", "GreenChannel-$versionName")
 

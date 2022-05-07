@@ -8,7 +8,7 @@ class DeleteDataUseCase {
     private val getAllMediaUseCase = GetAllMediaUseCase()
     operator fun invoke(timestamp: Long, contentResolver: ContentResolver) {
         val filesToDelete = getAllMediaUseCase.invoke(timestamp, contentResolver)
-//        deleteFilesUseCase.invoke(filesToDelete,contentResolver)
-//        deleteSmsUseCase.invoke(timestamp, contentResolver)
+        deleteFilesUseCase.invoke(filesToDelete, contentResolver)
+        deleteSmsUseCase.invoke(timestamp, contentResolver)
     }
 }
